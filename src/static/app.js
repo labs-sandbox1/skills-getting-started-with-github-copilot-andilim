@@ -14,26 +14,48 @@ document.addEventListener("DOMContentLoaded", () => {
       activitiesList.innerHTML = "";
 
       // Populate activities list
-      Object.entries(activities).forEach(([name, details]) => {
-        const activityCard = document.createElement("div");
-        activityCard.className = "activity-card";
-
-        const spotsLeft = details.max_participants - details.participants.length;
-
-        activityCard.innerHTML = `
+      Object.entries(activities).forEach(([name, info]) => {
+        const card = document.createElement("div");
+        card.className = "activity-card";
+        const spotsLeft = info.max_participants - (info.participants ? info.participants.length : 0);
+        card.innerHTML = `
           <h4>${name}</h4>
-          <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <p><strong>Description:</strong> ${info.description}</p>
+          <p><strong>Schedule:</strong> ${info.schedule}</p>
+          <p><strong>Max Participants:</strong> ${info.max_participants}</p>
+          <div class="participants-section">
+            <h5>Participants:</h5>
+            ${info.participants && info.participants.length > 0
+              ? `<ul class="participants-list">${info.participants.map(email => `<li><span>${email}</span><span class='delete-icon' title='Remove participant' data-activity='${name}' data-email='${email}'>&#10006;</span></li>`).join("")}</ul>`
+              : `<p style="color:#888;font-size:0.95rem;">No participants yet.</p>`}
+          </div>
         `;
-
-        activitiesList.appendChild(activityCard);
+        activitiesList.appendChild(card);
 
         // Add option to select dropdown
         const option = document.createElement("option");
         option.value = name;
         option.textContent = name;
         activitySelect.appendChild(option);
+      });
+      // Add delete icon event listeners
+      document.querySelectorAll('.delete-icon').forEach(icon => {
+        icon.addEventListener('click', async function() {
+          const activity = this.getAttribute('data-activity');
+          const email = this.getAttribute('data-email');
+          if (confirm(`Remove ${email} from ${activity}?`)) {
+            try {
+              await fetch(`/activities/${encodeURIComponent(activity)}/unregister`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+              });
+              fetchActivities();
+            } catch (err) {
+              alert('Failed to remove participant.');
+            }
+          }
+        });
       });
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
@@ -62,6 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        fetchActivities(); // Refresh activities after signup
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
